@@ -1,6 +1,7 @@
 /ansible
 /iac_*
+/sort_temp
 
 *.pyc
-/sort_temp
+
 test.json
