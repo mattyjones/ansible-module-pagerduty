@@ -22,7 +22,7 @@ def main():
             email=dict(required=True),
             name=dict(required=True),
             role=dict(required=False, default='limited_user'),
-            timezone=dict(required=False, default='UTC'),
+            time_zone=dict(required=False, default='Etc/UTC'),
         ),
         supports_check_mode=True
     )
@@ -33,49 +33,31 @@ def main():
     email = module.params['email']
     name = module.params['name']
     role = module.params['role']
-    timezone = module.params['timezone']
+    time_zone = module.params['time_zone']
 
-    count = 0
     obj = 'users'
 
     # Get a json blob of remote users
-    remote_d = pd.fetchRemoteData(obj, module, remote_user_data, count)
+    remote_d = pd.fetchRemoteData(obj, module, remote_user_data)
 
-    # get the local user data
-    with open('test.json') as json_data:
-        local_d = json.load(json_data)
-        json_data.close()
-
-    # Create the master lists
+    # Create the master list of remote users for easy parsing
     remote_master = pd.createUserList(remote_d)
-    local_master = pd.createUserList(local_d['users'])
 
-    # Create list of users to be disabled
-    disabled_users_list = pd.createDisabledList(local_d['users'])
+    if acc_status == 'disabled' and email in remote_master:
+        print("I am disabling a user")
+        pd.disableObj(obj, remote_d, module)
+    elif acc_status == 'disabled' and email not in remote_master:
+        print("The user is not in the remote list")
+    elif acc_status == 'active' and email not in remote_master:
+        print("I am creating a user")
+        pd.createObj(obj, module)
+    elif acc_status == 'active' and email in remote_master:
+        print("I am going to try an update")
+        pd.updateObj(obj, module, remote_d)
+    else:
+        print("I am lost and have no idea what you want me to do")
 
-    if disabled_users_list > 0:
-        # Delete users that are marked as disabled
-        local_master = pd.disableUser(
-            obj, disabled_users_list, local_master, remote_d, module)
-
-# removing from this point down for now
-
-    # Generate a list of user to remove remotely if needed
-# removal_list = pd.objStatus(local_d)
-
-    # Generate a list of objects that need to be updated
-# updates_needed = pd.detectKeyChanges(remote_d, local_d, obj)
-
-    module.exit_json(changed=True, result="12345", msg=local_master)
-    # if matty != 'foo':
-    #     module.exit_json(changed=True, result="12345", msg="good job")
-    # else:
-    #     module.fail_json(msg="Something fatal happened", result='go away')
-
-
-# 1. pull the current list of user with their attributes
-# 2. get the list of local users that we want to affect
-# 3. compile a list of users that will need to be created or updated
+    module.exit_json(changed=True, result="12345", msg="debugging")
 
 
 if __name__ == '__main__':
