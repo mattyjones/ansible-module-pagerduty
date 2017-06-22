@@ -6,8 +6,10 @@ import os
 from ansible.module_utils.urls import fetch_url
 
 PD_TOKEN = os.environ['PD_TOKEN']
+machine_user_email = 'urlugal@gmail.com'
 headers = {'Accept': 'application/vnd.pagerduty+json;version=2',
-           'Authorization': 'Token token=' + PD_TOKEN}
+           'Authorization': 'Token token=' + PD_TOKEN
+           'From': machine_user_email}
 
 
 def setUrl(limit, offset, obj):
@@ -55,6 +57,82 @@ def fetchRemoteData(obj, module, remote_data, count):
 
     # print(count)
     return remote_data
+
+
+def createUserList(data):
+    users = []
+    for u in data:
+        users.append(u['email'])
+    return users
+
+
+def createDisabledList(data):
+    users = []
+    for u in data:
+        if u['status'] == 'disabled':
+            users.append(u['email'])
+    return users
+
+
+def createUser(obj, l_list, r_list, module):
+    users = []
+    url = 'https://api.pagerduty.com/' + obj
+    for l in l_list:
+        if l not in r_list:
+            users.append(l)
+            l_list.remove(l)
+
+    if len(users) > 0:
+        for u in users:
+
+            # acc_status = module.params['acc_status']
+            # acc_type = module.params['acc_type']
+            # description = module.params['description']
+            # email = module.params['email']
+            # name = module.params['name']
+            # role = module.params['role']
+            # timezone = module.params['timezone']
+
+    data = {
+        "user": {
+            "type": "user",
+            "name": module.params['name'],
+            "email": module.params['email'],
+            "time_zone": module.params['timezone'],
+            "role": module.params['role'],
+            "description": "Managed by Ansible"
+        }
+    }
+
+    response, info = fetch_url(
+        module, url, method='POST', data, headers=headers)
+
+
+def disableUser(obj, d_list, l_list, r_data, module):
+    ids = []
+    url = "https://api.pagerduty.com/" + obj + "/"
+    for u in d_list:
+        for d in r_data:
+            if u == d['email']:
+                ids.append(d['id'])
+                d_list.remove(u)
+                l_list.remove(u)
+        d_list.remove(u)
+        l_list.remove(u)
+
+    if len(ids) > 0:
+        for i in ids:
+            url = url + i
+            response, info = fetch_url(
+                module, url, method='DELETE', headers=headers)
+            if info['status'] != 204:
+                module.fail_json(
+                    msg="API call failed to delete object: %s." % (info)
+                )
+
+    if len(d_list) > 0:
+        module.fail_json(msg="Object failed to be deleted")
+    return l_list
 
 
 def detectKeyChanges(remote_d, local_d, obj):

@@ -38,7 +38,7 @@ def main():
     count = 0
     obj = 'users'
 
-    # Get a json blob or remote users
+    # Get a json blob of remote users
     remote_d = pd.fetchRemoteData(obj, module, remote_user_data, count)
 
     # get the local user data
@@ -46,13 +46,27 @@ def main():
         local_d = json.load(json_data)
         json_data.close()
 
+    # Create the master lists
+    remote_master = pd.createUserList(remote_d)
+    local_master = pd.createUserList(local_d['users'])
+
+    # Create list of users to be disabled
+    disabled_users_list = pd.createDisabledList(local_d['users'])
+
+    if disabled_users_list > 0:
+        # Delete users that are marked as disabled
+        local_master = pd.disableUser(
+            obj, disabled_users_list, local_master, remote_d, module)
+
+# removing from this point down for now
+
     # Generate a list of user to remove remotely if needed
-    removal_list = pd.objStatus(local_d)
+# removal_list = pd.objStatus(local_d)
 
     # Generate a list of objects that need to be updated
-    updates_needed = pd.detectKeyChanges(remote_d, local_d, obj)
+# updates_needed = pd.detectKeyChanges(remote_d, local_d, obj)
 
-    module.exit_json(changed=True, result="12345", msg=remote_d)
+    module.exit_json(changed=True, result="12345", msg=local_master)
     # if matty != 'foo':
     #     module.exit_json(changed=True, result="12345", msg="good job")
     # else:
