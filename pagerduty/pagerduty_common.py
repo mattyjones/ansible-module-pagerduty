@@ -16,7 +16,7 @@ headers = {'Accept': 'application/vnd.pagerduty+json;version=2',
 def setFetchUrl(limit, offset, obj_type):
     if obj_type == 'users':
         return "https://api.pagerduty.com/users?include%5B%5D=contact_methods&include%5B%5D=notification_rules&include%5B%5D=teams&limit=" + str(limit) + "&offset=" + str(offset)  # nopep8
-    elif args.teams:
+    elif obj_type == 'teams':
         return "https://api.pagerduty.com/teams?limit=" + str(limit) + "&offset=" + str(offset)  # nopep8
 
 
@@ -33,8 +33,9 @@ def parseResp(response, offset, remote_data, obj_type):
         jData = json.loads(response)
         paged = bool(jData['more'])
         offset = offset + 25
-        for u in jData['teams']:
-            remote_data.append(json.dumps(u))
+        for t in jData['teams']:
+            remote_data.append(t)
+        return offset, paged, remote_data
 
 
 def fetchRemoteData(obj_type, module):
@@ -62,8 +63,10 @@ def createObjectList(obj_type, data):
     objects = []
     if obj_type == 'users':
         obj_key = 'email'
-    for u in data:
-        objects.append(u[obj_key])
+    elif obj_type == 'teams':
+        obj_key = 'name'
+    for d in data:
+        objects.append(d[obj_key])
     return objects
 
 
@@ -81,11 +84,24 @@ def createUserObj(module):
     return d
 
 
+def createTeamObj(module):
+    d = {
+        "team": {
+            "name": module.params['name'],
+            "description": module.params['description'],
+            "type": "team"
+        }
+    }
+    return d
+
+
 def createObj(obj_type, module):
     url = 'https://api.pagerduty.com/' + obj_type
 
     if obj_type == 'users':
         data = createUserObj(module)
+    elif obj_type == 'teams':
+        data = createTeamObj(module)
 
     response, info = fetch_url(
         module, url, json.dumps(data), method='POST', headers=headers)
@@ -99,6 +115,8 @@ def disableObj(obj_type, remote_d, module):
     url = "https://api.pagerduty.com/" + obj_type + "/"
     if obj_type == 'users':
         obj_key = 'email'
+    if obj_type == 'teams':
+        obj_key = 'name'
 
     for u in remote_d:
         if module.params[obj_key] == u[obj_key]:
@@ -110,7 +128,8 @@ def disableObj(obj_type, remote_d, module):
                     msg="API call failed to delete object: %s." % (info))
 
 
-def updateUsers(remote_d, module):
+def updateUsers(remote_d, module, update):
+    uid = ''
     for u in remote_d:
         if u['email'] == module.params['email']:
             if not u['name'] == module.params['name']:
@@ -128,15 +147,32 @@ def updateUsers(remote_d, module):
     return update, uid
 
 
+def updateTeams(remote_d, module, update):
+    uid = ''
+    for t in remote_d:
+        if u['name'] == module.params['name']:
+            if not u['name'] == module.params['name']:
+                update = True
+                uid = u['id']
+            elif not str(u['description']) == str(module.params['description']):  # nopep8
+                update = True
+                uid = u['id']
+    return update, uid
+
+
 def updateObj(obj_type, module, remote_d):
     update = False
     if obj_type == 'users':
-        update, uid = updateUsers(remote_d, module)
+        update, uid = updateUsers(remote_d, module, update)
         if update:
             data = createUserObj(module)
+    elif obj_type == 'teams':
+        update, uid = updateTeams(remote_d, module, update)
+        if update:
+            data = createTeamObj(module)
 
     if update:
-        print("I am going to update the object")
+        # print("I am going to update the object")
         url = "https://api.pagerduty.com/" + obj_type + "/" + uid
         response, info = fetch_url(
             module, url, json.dumps(data), method='PUT', headers=headers)

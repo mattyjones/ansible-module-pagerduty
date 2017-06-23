@@ -12,7 +12,8 @@ except ImportError:
 def main():
     module = AnsibleModule(
         argument_spec=dict(
-            acc_status=dict(required=True, type='str'),
+            acc_status=dict(required=True, type='str',
+                            choices=['present', 'absent']),
             avatar_url=dict(
                 required=False, default='https://static.comicvine.com/uploads/scale_small/0/77/236205-57083-alfred-e-neuman.jpg',  # nopep8
                 type='str'),
@@ -33,25 +34,25 @@ def main():
     email = module.params['email']
     obj_type = 'users'
 
-    # Get a json blob of remote users
+    # Get a json blob of remote data
     remote_d = pd.fetchRemoteData(obj_type, module)
 
     # Create the master list of remote users for easy parsing
     remote_master = pd.createObjectList(obj_type, remote_d)
 
-    if acc_status == 'disabled' and email in remote_master:
-        print("I am disabling a user")
+    if acc_status == 'absent' and email in remote_master:
+        # print("I am disabling a user")
         pd.disableObj(obj_type, remote_d, module)
-    elif acc_status == 'disabled' and email not in remote_master:
-        print("The user is not in the remote list")
-    elif acc_status == 'active' and email not in remote_master:
-        print("I am creating a user")
+    # elif acc_status == 'absent' and email not in remote_master:
+        # print("The user is not in the remote list")
+    elif acc_status == 'present' and email not in remote_master:
+        # print("I am creating a user")
         pd.createObj(obj_type, module)
-    elif acc_status == 'active' and email in remote_master:
-        print("I am going to determine if an update is needed")
+    elif acc_status == 'present' and email in remote_master:
+        # print("I am going to determine if an update is needed")
         pd.updateObj(obj_type, module, remote_d)
-    else:
-        print("I am lost and have no idea what you want me to do")
+    # else:
+        # print("I am lost and have no idea what you want me to do")
 
     module.exit_json(changed=True, result="12345", msg="debugging")
 
