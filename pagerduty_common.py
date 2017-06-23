@@ -13,15 +13,15 @@ headers = {'Accept': 'application/vnd.pagerduty+json;version=2',
            'From': machine_user_email}
 
 
-def setFetchUrl(limit, offset, obj):
-    if obj == 'users':
+def setFetchUrl(limit, offset, obj_type):
+    if obj_type == 'users':
         return "https://api.pagerduty.com/users?include%5B%5D=contact_methods&include%5B%5D=notification_rules&include%5B%5D=teams&limit=" + str(limit) + "&offset=" + str(offset)  # nopep8
     elif args.teams:
         return "https://api.pagerduty.com/teams?limit=" + str(limit) + "&offset=" + str(offset)  # nopep8
 
 
-def parseResp(response, offset, remote_data, obj):
-    if obj == 'users':
+def parseResp(response, offset, remote_data, obj_type):
+    if obj_type == 'users':
         jData = json.loads(response)
         paged = bool(jData['more'])
         offset = offset + 25
@@ -29,7 +29,7 @@ def parseResp(response, offset, remote_data, obj):
             remote_data.append(u)
         return offset, paged, remote_data
 
-    elif obj == 'teams':
+    elif obj_type == 'teams':
         jData = json.loads(response)
         paged = bool(jData['more'])
         offset = offset + 25
@@ -37,14 +37,15 @@ def parseResp(response, offset, remote_data, obj):
             remote_data.append(json.dumps(u))
 
 
-def fetchRemoteData(obj, module, remote_data):
+def fetchRemoteData(obj_type, module):
+    remote_data = []
     paged = True  # by default assume results will be paged
     offset = 0  # offset for additional calls
     limit = 25  # number of entities to grab
     timeout = 30
 
     while (paged == True):  # nopep8
-        url = setFetchUrl(limit, offset, obj)
+        url = setFetchUrl(limit, offset, obj_type)
         response, info = fetch_url(module, url, method='GET', headers=headers)
 
         if info['status'] != 200:
@@ -52,16 +53,18 @@ def fetchRemoteData(obj, module, remote_data):
                 msg="Failed to get remote data: %s." % (info)
             )
         offset, paged, remote_data = parseResp(
-            response.read(), offset, remote_data, obj)
+            response.read(), offset, remote_data, obj_type)
 
     return remote_data
 
 
-def createUserList(data):
-    users = []
+def createObjectList(obj_type, data):
+    objects = []
+    if obj_type == 'users':
+        obj_key = 'email'
     for u in data:
-        users.append(u['email'])
-    return users
+        objects.append(u[obj_key])
+    return objects
 
 
 def createUserObj(module):
@@ -78,10 +81,10 @@ def createUserObj(module):
     return d
 
 
-def createObj(obj, module):
-    url = 'https://api.pagerduty.com/' + obj
+def createObj(obj_type, module):
+    url = 'https://api.pagerduty.com/' + obj_type
 
-    if obj == 'users':
+    if obj_type == 'users':
         data = createUserObj(module)
 
     response, info = fetch_url(
@@ -92,10 +95,13 @@ def createObj(obj, module):
     print(info)
 
 
-def disableObj(obj, remote_d, module):
-    url = "https://api.pagerduty.com/" + obj + "/"
+def disableObj(obj_type, remote_d, module):
+    url = "https://api.pagerduty.com/" + obj_type + "/"
+    if obj_type == 'users':
+        obj_key = 'email'
+
     for u in remote_d:
-        if module.params['email'] == u['email']:
+        if module.params[obj_key] == u[obj_key]:
             url = url + u['id']
             response, info = fetch_url(
                 module, url, method='DELETE', headers=headers)
@@ -104,8 +110,7 @@ def disableObj(obj, remote_d, module):
                     msg="API call failed to delete object: %s." % (info))
 
 
-def updateObj(obj, module, remote_d):
-    update = False
+def updateUsers(remote_d, module):
     for u in remote_d:
         if u['email'] == module.params['email']:
             if not u['name'] == module.params['name']:
@@ -117,18 +122,22 @@ def updateObj(obj, module, remote_d):
             elif not str(u['time_zone']) == str(module.params['time_zone']):
                 update = True
                 uid = u['id']
-                print("this is the local: " + str(u['time_zone']) +
-                      " and this is the remote: " + str(module.params['time_zone']))
             elif not str(u['description']) == str(module.params['description']):  # nopep8
                 update = True
                 uid = u['id']
-                print("this is the local: " + str(u['description']) +
-                      " and this is the remote: " + str(module.params['description']))
+    return update, uid
+
+
+def updateObj(obj_type, module, remote_d):
+    update = False
+    if obj_type == 'users':
+        update, uid = updateUsers(remote_d, module)
+        if update:
+            data = createUserObj(module)
 
     if update:
-        print("I am going to update a user")
-        data = createUserObj(module)
-        url = "https://api.pagerduty.com/" + obj + "/" + uid
+        print("I am going to update the object")
+        url = "https://api.pagerduty.com/" + obj_type + "/" + uid
         response, info = fetch_url(
             module, url, json.dumps(data), method='PUT', headers=headers)
         if info['status'] != 200:
