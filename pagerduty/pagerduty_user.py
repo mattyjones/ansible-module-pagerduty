@@ -25,6 +25,7 @@ def main():
             name=dict(required=True, type='str'),
             role=dict(required=False, default='limited_user', type='str', choices=[  # nopep8
                       'admin', 'limited_user', 'owner', 'read_only_user', 'user']),  # nopep8
+            teams=dict(required=False, type='list'),
             time_zone=dict(required=False, default='Etc/UTC', type='str'),
         ),
         supports_check_mode=True
@@ -41,18 +42,18 @@ def main():
     remote_master = pd.createObjectList(obj_type, remote_d)
 
     if acc_status == 'absent' and email in remote_master:
-        # print("I am disabling a user")
+        print("I am disabling a user")
         pd.disableObj(obj_type, remote_d, module)
     # elif acc_status == 'absent' and email not in remote_master:
-        # print("The user is not in the remote list")
+        print("The user is not in the remote list")
     elif acc_status == 'present' and email not in remote_master:
-        # print("I am creating a user")
+        print("I am creating a user")
         pd.createObj(obj_type, module)
     elif acc_status == 'present' and email in remote_master:
-        # print("I am going to determine if an update is needed")
+        print("I am going to determine if an update is needed")
         pd.updateObj(obj_type, module, remote_d)
-    # else:
-        # print("I am lost and have no idea what you want me to do")
+    else:
+        print("I am lost and have no idea what you want me to do")
 
     module.exit_json(changed=True, result="12345", msg="debugging")
 

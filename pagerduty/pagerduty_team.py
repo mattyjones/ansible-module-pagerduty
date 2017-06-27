@@ -28,9 +28,6 @@ def main():
     # Get a json blob of remote data
     remote_d = pd.fetchRemoteData(obj_type, module)
 
-    # for d in remote_d:
-    #     print(d)
-
     # Create the master list of remote objects for easy parsing
     remote_master = pd.createObjectList(obj_type, remote_d)
 

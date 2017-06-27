@@ -128,6 +128,40 @@ def disableObj(obj_type, remote_d, module):
                     msg="API call failed to delete object: %s." % (info))
 
 
+def checkTeams(update, module, remote_data):
+    obj_type = 'teams'
+    email = module.params['email']
+
+    # the list of teams the user should be a member of
+    local_team_list = module.params['teams']
+
+    # the json blob that contains what is currently known about the user
+    remote_user_data = remote_data
+
+    # the list of all remote team names that the user is a member of
+    remote_team_list = createObjectList(
+        obj_type, remote_user_data[email]['teams'])
+
+    # all the data about known teams that exist remotely
+    remote_team_data = fetchRemoteData(obj_type, module)
+
+    # the list of all remote team names that exist
+    remote_team_master = createObjectList(obj_type, remote_d)
+
+    for t in local_team_list:
+        if t in remote_team_list:
+            print("you are already in this team, no update needed")
+        elif t not in remote_team_list and t in remote_team_master:
+            update = True
+            for r in remote_team_data:
+                if r['name'] == t:
+                    uid = r['id']
+        elif t not in remote_team_master:
+            print('this team does not yet exist, please create it first')
+
+    return update, uid
+
+
 def updateUsers(remote_d, module, update):
     uid = ''
     for u in remote_d:
@@ -138,25 +172,27 @@ def updateUsers(remote_d, module, update):
             elif not u['role'] == module.params['role']:
                 update = True
                 uid = u['id']
-            elif not str(u['time_zone']) == str(module.params['time_zone']):
+            elif not u['time_zone'] == module.params['time_zone']:
                 update = True
                 uid = u['id']
-            elif not str(u['description']) == str(module.params['description']):  # nopep8
+            elif not u['description'] == module.params['description']:  # nopep8
                 update = True
                 uid = u['id']
+
+    checkTeams(update, module, remote_d)
+
     return update, uid
 
 
 def updateTeams(remote_d, module, update):
     uid = ''
-    for t in remote_d:
-        if u['name'] == module.params['name']:
-            if not u['name'] == module.params['name']:
+    for t in remote_d:  # for each team that exists globally
+        if module.params['name'] == t['name']: # if the desired team already exists in globally in pd
+            if not t['description'] == module.params['description']:
                 update = True
-                uid = u['id']
-            elif not str(u['description']) == str(module.params['description']):  # nopep8
-                update = True
-                uid = u['id']
+                uid = t['id']
+            else:
+                print("the team does not need to be updated")
     return update, uid
 
 
