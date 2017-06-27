@@ -19,6 +19,8 @@ def setFetchUrl(limit, offset, obj_type):
     elif obj_type == 'teams':
         return "https://api.pagerduty.com/teams?limit=" + str(limit) + "&offset=" + str(offset)  # nopep8
 
+def setUpdateUrl(uid,tid):
+  return 'https://api.pagerduty.com/teams/' + tid + '/users/' + uid
 
 def parseResp(response, offset, remote_data, obj_type):
     if obj_type == 'users':
@@ -139,49 +141,57 @@ def checkTeams(update, module, remote_data):
     remote_user_data = remote_data
 
     # the list of all remote team names that the user is a member of
-    remote_team_list = createObjectList(
-        obj_type, remote_user_data[email]['teams'])
+    remote_team_list = []
+    for u in remote_data:
+        if u['email'] == email:
+            for t in u['teams']:
+                remote_team_list.append(t)
+    #  remote_team_list = createObjectList(
+        #  obj_type, remote_user_data[email])
 
     # all the data about known teams that exist remotely
+    t_data = fetchRemoteData(obj_type, module)
     remote_team_data = fetchRemoteData(obj_type, module)
 
     # the list of all remote team names that exist
-    remote_team_master = createObjectList(obj_type, remote_d)
-
+    remote_team_master = createObjectList(obj_type, t_data)
+    #  print(local_team_list)
+    #  print(remote_team_list)
+    #  print(remote_team_master)
+    #  print(module.params['teams'])
     for t in local_team_list:
         if t in remote_team_list:
             print("you are already in this team, no update needed")
         elif t not in remote_team_list and t in remote_team_master:
+            print('I am adding you to a team')
             update = True
             for r in remote_team_data:
                 if r['name'] == t:
-                    uid = r['id']
+                    tid = r['id']
+                    print(tid)
         elif t not in remote_team_master:
             print('this team does not yet exist, please create it first')
 
-    return update, uid
+    return update, tid
 
 
 def updateUsers(remote_d, module, update):
     uid = ''
     for u in remote_d:
         if u['email'] == module.params['email']:
+            uid = u['id']
             if not u['name'] == module.params['name']:
                 update = True
-                uid = u['id']
             elif not u['role'] == module.params['role']:
                 update = True
-                uid = u['id']
             elif not u['time_zone'] == module.params['time_zone']:
                 update = True
-                uid = u['id']
             elif not u['description'] == module.params['description']:  # nopep8
                 update = True
-                uid = u['id']
 
-    checkTeams(update, module, remote_d)
+    update, tid = checkTeams(update, module, remote_d)
 
-    return update, uid
+    return update, uid, tid
 
 
 def updateTeams(remote_d, module, update):
@@ -191,6 +201,7 @@ def updateTeams(remote_d, module, update):
             if not t['description'] == module.params['description']:
                 update = True
                 uid = t['id']
+                print("An update is needed")
             else:
                 print("the team does not need to be updated")
     return update, uid
@@ -199,17 +210,18 @@ def updateTeams(remote_d, module, update):
 def updateObj(obj_type, module, remote_d):
     update = False
     if obj_type == 'users':
-        update, uid = updateUsers(remote_d, module, update)
+        update, uid, tid = updateUsers(remote_d, module, update)
         if update:
             data = createUserObj(module)
+            url = setUpdateUrl(uid, tid)
     elif obj_type == 'teams':
-        update, uid = updateTeams(remote_d, module, update)
+        update, tid = updateTeams(remote_d, module, update)
         if update:
             data = createTeamObj(module)
+            url = "https://api.pagerduty.com/" + obj_type + "/" + tid
 
     if update:
-        # print("I am going to update the object")
-        url = "https://api.pagerduty.com/" + obj_type + "/" + uid
+        print("I am going to update the object")
         response, info = fetch_url(
             module, url, json.dumps(data), method='PUT', headers=headers)
         if info['status'] != 200:
