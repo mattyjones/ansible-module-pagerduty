@@ -12,14 +12,18 @@ except ImportError:
 def main():
     module = AnsibleModule(
         argument_spec=dict(
-            acc_status=dict(required=True, type='str',
-                            choices=['present', 'absent']),
+            state=dict(required=True, type='str',
+                       choices=['present', 'absent']),
+            desc=dict(default='Managed by Ansible',
+                      required=False, type='str'),
+            token=dict(required=False, type='str'),
+            user_name=dict(required=False, type='str'),
+            password=dict(required=False, type='str'),
+            users=dict(required=False, type='list'),
             avatar_url=dict(
                 required=False, default='https://static.comicvine.com/uploads/scale_small/0/77/236205-57083-alfred-e-neuman.jpg',  # nopep8
                 type='str'),
             color=dict(required=False, default='green', type='str'),
-            description=dict(default='Managed by Ansible',
-                             required=False, type='str'),
             email=dict(required=True, type='str'),
             job_title=dict(required=False, default='', type='str'),
             name=dict(required=True, type='str'),
@@ -31,7 +35,7 @@ def main():
         supports_check_mode=True
     )
 
-    acc_status = module.params['acc_status']
+    acc_state = module.params['state']
     email = module.params['email']
     obj_type = 'users'
 
@@ -41,19 +45,21 @@ def main():
     # Create the master list of remote users for easy parsing
     remote_master = pd.createObjectList(obj_type, remote_d)
 
-    if acc_status == 'absent' and email in remote_master:
-        print("I am disabling a user")
-        pd.disableObj(obj_type, remote_d, module)
-    # elif acc_status == 'absent' and email not in remote_master:
-        print("The user is not in the remote list")
-    elif acc_status == 'present' and email not in remote_master:
+    if acc_state == 'absent' and email not in remote_master:
+        print("The user does not exist remotely")
+    elif acc_state == 'absent' and module.params['teams'] and email in remote_master:
+        print("I am removing a user from the teams in the list")
+        pd.checkUpdateObj(obj_type, remote_d, module)
+    elif acc_state == 'absent' and not module.params['teams'] and email in remote_master:
+        print("I am deleting a user")
+        pd.deleteObj(obj_type, remote_d, module)
+
+    if acc_state == 'present' and email not in remote_master:
         print("I am creating a user")
         pd.createObj(obj_type, module)
-    elif acc_status == 'present' and email in remote_master:
+    elif acc_state == 'present' and email in remote_master:
         print("I am going to determine if an update is needed")
-        pd.updateObj(obj_type, module, remote_d)
-    else:
-        print("I am lost and have no idea what you want me to do")
+        pd.checkUpdateObj(obj_type, module, remote_d)
 
     module.exit_json(changed=True, result="12345", msg="debugging")
 
