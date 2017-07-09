@@ -31,6 +31,7 @@ def main():
                       'admin', 'limited_user', 'owner', 'read_only_user', 'user']),  # nopep8
             teams=dict(required=False, type='list'),
             time_zone=dict(required=False, default='Etc/UTC', type='str'),
+            requester_id=dict(required=False, type='str'),
         ),
         supports_check_mode=True
     )
@@ -46,22 +47,18 @@ def main():
     remote_master = pd.createObjectList(obj_type, remote_d)
 
     if acc_state == 'absent' and email not in remote_master:
-        print("The user does not exist remotely")
+        module.exit_json(changed=False, msg="User not found")
     elif acc_state == 'absent' and module.params['teams'] and email in remote_master:
-        print("I am removing a user from the teams in the list")
-        pd.checkUpdateObj(obj_type, remote_d, module)
+        pd.checkUpdateObj(obj_type, module, remote_d)
     elif acc_state == 'absent' and not module.params['teams'] and email in remote_master:
-        print("I am deleting a user")
         pd.deleteObj(obj_type, remote_d, module)
 
     if acc_state == 'present' and email not in remote_master:
-        print("I am creating a user")
         pd.createObj(obj_type, module)
     elif acc_state == 'present' and email in remote_master:
-        print("I am going to determine if an update is needed")
         pd.checkUpdateObj(obj_type, module, remote_d)
 
-    module.exit_json(changed=True, result="12345", msg="debugging")
+    # module.exit_json(changed=True, result="12345", msg="debugging")
 
 
 if __name__ == '__main__':
