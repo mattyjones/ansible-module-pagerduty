@@ -136,7 +136,7 @@ id:
 '''
 
 from ansible.module_utils.basic import AnsibleModule
-import pagerduty_common as pd
+from ansible.module_utils.pagerduty_common import *
 
 try:
     import json
@@ -155,7 +155,7 @@ def main():
             token=dict(required=False, type='str'),
             user_name=dict(required=False, type='str'),
             password=dict(required=False, type='str'),
-            users=dict(required=False, type='list'),
+            # users=dict(required=False, type='list'),
             requester_id=dict(required=True, type='str'),
         ),
         supports_check_mode=True
@@ -166,27 +166,33 @@ def main():
     team_name = module.params['name']
 
     # Get a json blob of remote data
-    remote_d = pd.fetchRemoteData(obj_type, module)
+    remote_d = fetchRemoteData(obj_type, module)
 
     # Create the master list of remote objects for easy parsing
-    remote_master = pd.createObjectList(obj_type, remote_d)
+    remote_master = createObjectList(obj_type, remote_d)
 
     # If we don't want the team
     if acc_state == 'absent' and team_name in remote_master:
-        print("I am deleting the team")
-        pd.deleteObj(obj_type, remote_d, module)
-    elif acc_state == 'absent' and team_name not in remote_master:
-        print("The team is not in the remote list")
+        deleteObj(obj_type, remote_d, module)
+        module.exit_json(changed=True,  msg="we deleted the team: %s" %
+                         (module.params['name']))
+    if acc_state == 'absent' and team_name not in remote_master:
+        module.exit_json(changed=False,  msg="the team %s was not present" %
+                         (module.params['name']))
 
     # If we do want the team
     if acc_state == 'present' and team_name not in remote_master:
-        print("I am creating the team")
-        pd.createObj(obj_type, module)
+        createObj(obj_type, module)
+        module.exit_json(changed=True,  msg="we added the team: %s" %
+                         (module.params['name']))
     elif acc_state == 'present' and team_name in remote_master:
-        print("I am going to determine if an update is needed")
-        pd.checkUpdateObj(obj_type, module, remote_d)
-
-    module.exit_json(changed=True, result="12345", msg="debugging")
+        update = checkUpdateObj(obj_type, module, remote_d)
+        if update:
+            module.exit_json(changed=True,  msg="we updated the team: %s" %
+                             (module.params['name']))
+        else:
+            module.exit_json(changed=False,  msg="no updates detected for team: %s" %
+                             (module.params['name']))
 
 
 if __name__ == '__main__':

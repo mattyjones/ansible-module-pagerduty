@@ -5,7 +5,6 @@ import os
 import re
 
 from ansible.module_utils.urls import fetch_url
-from ansible.module_utils.basic import AnsibleModule
 
 
 def setHeaders(module, obj_type):
@@ -141,11 +140,9 @@ def createObj(obj_type, module):
 
     response, info = fetch_url(
         module, url, json.dumps(data), method='POST', headers=setHeaders(module, obj_type))
-    matchObj = re.match(r'^2.*', info['status'], re.M | re.I)
-    if not matchObj:
-        module.fail_json(msg="API call failed to create object: %s." % (info))
-
-    # print(info)
+    if info['status'] != 201:
+        module.fail_json(
+            msg="API call failed to create object: %s." % (info))
 
 
 def deleteObj(obj_type, remote_d, module):
@@ -160,65 +157,44 @@ def deleteObj(obj_type, remote_d, module):
             url = url + u['id']
             response, info = fetch_url(
                 module, url, method='DELETE', headers=setHeaders(module, obj_type))
-            matchObj = re.match(r'^2.*', info['status'], re.M | re.I)
-    if not matchObj:
-        module.fail_json(
-            msg="API call failed to delete object: %s." % (info))
+            if info['status'] != 204:
+                module.fail_json(
+                    msg="API call failed to delete object: %s." % (info))
 
 
-def checkTeams(remote_data, module, update):
+def checkTeams(remote_user_data, module, update, t):
     obj_type = 'teams'
     email = module.params['email']
-
-    # the list of teams the user should be a member of
-    local_team_list = module.params['teams']
-
-    # the json blob that contains what is currently known about the user
-    remote_user_data = remote_data
+    uid = 'null'
+    tid = 'null'
 
     # the list of all remote team names that the user is a member of
     remote_teams = []
     for u in remote_user_data:
         if u['email'] == email:
             uid = u['id']
-            for t in u['teams']:
-                remote_teams.append(t)
+            for r in u['teams']:
+                remote_teams.append(r)
     remote_team_list = createObjectList(
         obj_type, remote_teams)
 
     # all the data about known teams that exist remotely
     t_data = fetchRemoteData(obj_type, module)
-    # remote_team_data = fetchRemoteData(obj_type, module)
 
     # the list of all remote team names that exist
     remote_team_master = createObjectList(obj_type, t_data)
 
-    for t in local_team_list:
-        if t in remote_team_list and module.params['state'] == 'present':
-            module.exit_json(changed=False)
-            # print("you are already in this team, no update needed")
-        elif t in remote_team_list and module.params['state'] == 'absent':
-            AnsibleModule.exit_json(changed=True)
-            # print("I will remove you from this team")
-            update = True
-            for r in t_data:
-                if r['name'] == t:
-                    tid = r['id']
-        elif t not in remote_team_list and t in remote_team_master and module.params['state'] == 'present':
-            AnsibleModule.exit_json(changed=True)
-            # print('I am adding you to a team')
-            update = True
-            for r in t_data:
-                if r['name'] == t:
-                    # print(r['id'])
-                    tid = r['id']
-        elif t not in remote_team_master:
-            AnsibleModule.fail_json(
-                changed=False, msg="%s does not exist, please crete it first." % (t))
-            # print('this team does not yet exist, please create it first')
-        elif t not in remote_team_list and module.params['state'] == 'absent':
-            AnsibleModule.exit_json(changed=False)
-            # print('You are not currently a member of the team')
+    # for t in local_team_list:
+    if t in remote_team_list and module.params['state'] == 'absent':
+        update = True
+        for r in t_data:
+            if r['name'] == t:
+                tid = r['id']
+    elif t not in remote_team_list and t in remote_team_master and module.params['state'] == 'present':
+        update = True
+        for r in t_data:
+            if r['name'] == t:
+                tid = r['id']
 
     return update, uid, tid
 
@@ -234,9 +210,8 @@ def updateUsers(remote_d, module, update):
                 update = True
             elif not u['time_zone'] == module.params['time_zone']:
                 update = True
-            elif not u['description'] == module.params['description']:  # nopep8
+            elif not u['description'] == module.params['desc']:  # nopep8
                 update = True
-
     return update, uid
 
 
@@ -248,54 +223,68 @@ def updateTeams(remote_d, module, update):
             if not t['description'] == module.params['desc']:
                 update = True
                 uid = t['id']
-                # print("An update is needed")
-            else:
-                AnsibleModule.exit_json(changed=False)
-                # print("the team does not need to be updated")
+            # else:
+            #     module.exit_json(
+            #         changed=False,  msg="the team did not need to be updated")
     return update, uid
 
 
 def checkUpdateObj(obj_type, module, remote_d):
     if obj_type == 'users':
-        update = False
-        # print(module.params['teams'])
-        for t in module.params['teams']:
-            update, uid, tid = checkTeams(remote_d, module, update)
-            if update:
-                data = ' '
-                url = setUpdateUrl(uid, tid)
-                if module.params['state'] == 'present':
-                    method = 'PUT'
-                elif module.params['state'] == 'absent':
-                    method = 'DELETE'
-                # print(url)
-                # print(method)
-                UpdateObj(module, url, data, method, obj_type)
+        update_master = False
+        if module.params['teams']:
+            team_list = []
+            for t in module.params['teams']:
+                team_list.append(t)
+            for t in team_list:
+                # module.exit_json(
+                #     changed=True,  msg=t)
+                update = False
+                update, uid, tid = checkTeams(remote_d, module, update, t)
+                if update:
+                    update_master = True
+                    data = ''
+                    url = setUpdateUrl(uid, tid)
+                    if module.params['state'] == 'present':
+                        method = 'PUT'
+                    elif module.params['state'] == 'absent':
+                        method = 'DELETE'
+                    UpdateObj(module, url, data, method, obj_type)
         update = False
         update, uid = updateUsers(remote_d, module, update)
         if update:
+            update_master = True
             data = createUserObj(module)
             url = "https://api.pagerduty.com/" + obj_type + "/" + uid
             method = 'PUT'
             UpdateObj(module, url, data, method, obj_type)
 
     elif obj_type == 'teams':
+        update = False
+        update_master = False
         team_update, tid = updateTeams(remote_d, module, update)
         if team_update:
+            update_master = True
             data = createTeamObj(module)
             url = "https://api.pagerduty.com/" + obj_type + "/" + tid
             method = 'PUT'
-            UpdateObj(module, url, data, method)
+            UpdateObj(module, url, data, method, obj_type)
+
+    return update_master
 
 
 def UpdateObj(module, url, data, method, obj_type):
+    # module.exit_json(
+    #     changed=True,  msg=setHeaders(module, obj_type))
     # print("I am going to update the object")
     response, info = fetch_url(
         module, url, json.dumps(data), method=method, headers=setHeaders(module, obj_type))
-    matchObj = re.match(r'^2.*', info['status'], re.M | re.I)
-    if not matchObj:
-        module.fail_json(
-            msg="API call failed to update object: %s." % (info))
+    # module.exit_json(
+    #     changed=True,  msg=info)
+    if info['status'] != 200:
+        if info['status'] != 204:
+            module.fail_json(
+                msg="API call failed to update object: %s." % (info))
 
 
 # if they want to remove a user they first have to remove the user from all teams
