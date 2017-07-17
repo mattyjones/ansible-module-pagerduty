@@ -19,7 +19,6 @@ def main():
             token=dict(required=False, type='str'),
             user_name=dict(required=False, type='str'),
             password=dict(required=False, type='str'),
-            # user=dict(required=False, type='str'),
             avatar_url=dict(
                 required=False, default='https://static.comicvine.com/uploads/scale_small/0/77/236205-57083-alfred-e-neuman.jpg',  # nopep8
                 type='str'),
@@ -56,9 +55,14 @@ def main():
     if acc_state == 'absent' and email not in remote_master:
         module.exit_json(changed=False, msg="User not found")
     elif acc_state == 'absent' and len(team_list) > 0 and email in remote_master:
-        checkUpdateObj(obj_type, module, remote_d)
-        module.exit_json(
-            changed=True, msg="removed the user from the listed teams")
+        update = checkUpdateObj(obj_type, module, remote_d)
+        if update:
+            module.exit_json(
+                changed=True, msg="removed the user from the listed teams")
+        else:
+            module.exit_json(changed=False,  msg="no updates detected: %s" %
+                             (module.params['email']))
+
     elif acc_state == 'absent' and not module.params['teams'] and email in remote_master:
         deleteObj(obj_type, remote_d, module)
         module.exit_json(changed=True, msg="removed the user from pagerduty")

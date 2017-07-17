@@ -130,6 +130,18 @@ def createTeamObj(module):
     return d
 
 
+def createContactMethodObj(module):
+    d = {
+        "contact_method": {
+            "summary": module.params['summary'],
+            "label": module.params['label'],
+            "type": module.params['type'],
+            "address": module.params['address']
+        }
+    }
+    return d
+
+
 def createObj(obj_type, module):
     url = 'https://api.pagerduty.com/' + obj_type
 
@@ -147,19 +159,39 @@ def createObj(obj_type, module):
 
 def deleteObj(obj_type, remote_d, module):
     url = "https://api.pagerduty.com/" + obj_type + "/"
+    obj_delete = False
+    update_obj = False
     if obj_type == 'users':
         obj_key = 'email'
     if obj_type == 'teams':
         obj_key = 'name'
+    if obj_type == 'contact_method':
+        obj_key = 'address'
 
-    for u in remote_d:
-        if module.params[obj_key] == u[obj_key]:
-            url = url + u['id']
-            response, info = fetch_url(
-                module, url, method='DELETE', headers=setHeaders(module, obj_type))
-            if info['status'] != 204:
-                module.fail_json(
-                    msg="API call failed to delete object: %s." % (info))
+    if obj_type == 'contact_method':
+        for u in remote_d:
+            if u['email'] == module.params['email']:
+                uid = u['id']
+                for c in u['contact_methods']:
+                    if c['type'] == module.params['type']:
+                        if c['address'] == module.params['address']:
+                            cid = c['id']
+                            obj_delete = True
+                            url = "https://api.pagerduty.com/users/" + uid + "/contact_methods/" + cid
+    elif obj_type != 'contact_method':
+        for u in remote_d:
+            if module.params[obj_key] == u[obj_key]:
+                url = url + u['id']
+                obj_delete = True
+
+    if obj_delete:
+        update_obj = True
+        response, info = fetch_url(
+            module, url, method='DELETE', headers=setHeaders(module, obj_type))
+        if info['status'] != 204:
+            module.fail_json(
+                msg="API call failed to delete object: %s." % (info))
+    return update_obj
 
 
 def checkTeams(remote_user_data, module, update, t):
@@ -215,21 +247,54 @@ def updateUsers(remote_d, module, update):
     return update, uid
 
 
+def checkContactMethod(remote_d, module, update_method, create_method):
+    uid = ''
+    cid = ''
+    for u in remote_d:
+        if u['email'] == module.params['email']:
+            uid = u['id']
+            for c in u['contact_methods']:
+                if c['type'] == module.params['type']:
+                    if c['address'] == module.params['address']:
+                        cid = c['id']
+                        create_method = False
+                        if c['label'] != module.params['label']:
+                            update_method = True
+
+    return update_method, create_method, uid, cid
+
+
 def updateTeams(remote_d, module, update):
     uid = ''
-    for t in remote_d:  # for each team that exists globally
-        # if the desired team already exists in globally in pd
+    for t in remote_d:
         if module.params['name'] == t['name']:
             if not t['description'] == module.params['desc']:
                 update = True
                 uid = t['id']
-            # else:
-            #     module.exit_json(
-            #         changed=False,  msg="the team did not need to be updated")
     return update, uid
 
 
 def checkUpdateObj(obj_type, module, remote_d):
+    if obj_type == 'contact_method':
+        update_master = False
+        update_method = False
+        create_method = True
+        update_method, create_method, uid, cid = checkContactMethod(
+            remote_d, module, update_method, create_method)
+
+        if update_method:
+            update_master = True
+            data = createContactMethodObj(module)
+            url = 'https://api.pagerduty.com/users/' + uid + '/contact_methods/' + cid
+            method = 'PUT'
+            UpdateObj(module, url, data, method, obj_type)
+        elif create_method:
+            update_master = True
+            data = createContactMethodObj(module)
+            url = 'https://api.pagerduty.com/users/' + uid + '/contact_methods'
+            method = 'POST'
+            UpdateObj(module, url, data, method, obj_type)
+
     if obj_type == 'users':
         update_master = False
         if module.params['teams']:
@@ -237,8 +302,6 @@ def checkUpdateObj(obj_type, module, remote_d):
             for t in module.params['teams']:
                 team_list.append(t)
             for t in team_list:
-                # module.exit_json(
-                #     changed=True,  msg=t)
                 update = False
                 update, uid, tid = checkTeams(remote_d, module, update, t)
                 if update:
@@ -259,7 +322,7 @@ def checkUpdateObj(obj_type, module, remote_d):
             method = 'PUT'
             UpdateObj(module, url, data, method, obj_type)
 
-    elif obj_type == 'teams':
+    if obj_type == 'teams':
         update = False
         update_master = False
         team_update, tid = updateTeams(remote_d, module, update)
@@ -274,21 +337,10 @@ def checkUpdateObj(obj_type, module, remote_d):
 
 
 def UpdateObj(module, url, data, method, obj_type):
-    # module.exit_json(
-    #     changed=True,  msg=setHeaders(module, obj_type))
-    # print("I am going to update the object")
     response, info = fetch_url(
         module, url, json.dumps(data), method=method, headers=setHeaders(module, obj_type))
-    # module.exit_json(
-    #     changed=True,  msg=info)
     if info['status'] != 200:
         if info['status'] != 204:
-            module.fail_json(
-                msg="API call failed to update object: %s." % (info))
-
-
-# if they want to remove a user they first have to remove the user from all teams
-# use state == absent with a list of teams to remove the user from the teams
-# use state == absent with no teams to remove the user
-
-# use state == present with a list of teams to add the user to teams
+            if info['status'] != 201:
+                module.fail_json(
+                    msg="API call failed to update object: %s." % (info))
