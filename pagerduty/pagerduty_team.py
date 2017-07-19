@@ -24,9 +24,9 @@ ANSIBLE_METADATA = {
 
 DOCUMENTATION = '''
 module: pagerduty_team
-short_description: Create PagerDuty teams
+short_description: Manage PagerDuty team creation and deletion
 description:
-    - This module will let you manage PagerDuty teams, including CRUD, and adding/removing users
+    - This module will let you manage PagerDuty teams. Available actions are creation, deletion, and updating. Managing users and team membership is not provided.
 
 version_added: ""
 author:
@@ -34,72 +34,73 @@ author:
 requirements:
     - PagerDuty API access
 options:
-    state:
-        description:
-            - Create or destroy a team.
-        required: true
-        default: null
-        choices: [ absent", "present" ]
-        aliases: []
-    name:
-        description:
-            - The name of the Pagerduty team.
-        required: true
-        default: null
-        choices: []
-        aliases: []
-        type: string
     desc:
         description:
             - A description of the team
-        required: false
-        default: "Managed by Ansible"
-        choices: []
-        aliases: []
-        type:string
-    token:
+        required: False
+        default:  Managed by Ansible
+        choices:  []
+        aliases:  []
+        type:     string
+    name:
         description:
-            - A pagerduty token, generated on the pagerduty site. Should be used instead of
-              user/passwd combination.
-        required: true
-        default: null
-        choices: []
-        aliases: []
-        type: string
+            - The name of the Pagerduty team.
+        required: True
+        default:  null
+        choices:  []
+        aliases:  []
+        type:     string
+    password:
+        description:
+            - PagerDuty user password.
+        required: True
+        default:  null
+        choices:  []
+        aliases:  []
+        type:     string
     requester_id:
         description:
             - Email of user making the request.
-        required: true
-        default: null
-        choices: []
-        aliases: []
-        type: string
+        required: True
+        default:  null
+        choices:  []
+        aliases:  []
+        type:     string
+    state:
+        description:
+            - Create or destroy a team.
+        required: True
+        default:  null
+        choices:  [ absent", "present" ]
+        aliases:  []
+        type:     string
+    token:
+        description:
+            - A pagerduty token, generated on the pagerduty site. Should be used instead of
+              user/password combination.
+        required: True
+        default:  null
+        choices:  []
+        aliases:  []
+        type:     string
     user_name:
         description:
             - PagerDuty user ID.
-        required: true
-        default: null
-        choices: []
-        aliases: []
-        type: string
-    passwd:
-        description:
-            - PagerDuty user password.
-        required: true
-        default: null
-        choices: []
-        aliases: []
-        type: string
+        required: True
+        default:  null
+        choices:  []
+        aliases:  []
+        type:     string
 '''
 
 EXAMPLES = '''
 - name: Create a new team with a username and password
   pagerduty_team:
-    name:      ops
-    user_name: example@example.com
-    passwd:    password123
-    state:     present
-    desc:      'traditional operations team'
+    name:        ops
+    user_name:   john@example.com
+    password:    password123
+    state:       present
+    desc:        'traditional operations team'
 
 - name: Create a new team with a token
   pagerduty_team:
@@ -155,7 +156,6 @@ def main():
             token=dict(required=False, type='str'),
             user_name=dict(required=False, type='str'),
             password=dict(required=False, type='str'),
-            # users=dict(required=False, type='list'),
             requester_id=dict(required=True, type='str'),
         ),
         supports_check_mode=True

@@ -1,4 +1,148 @@
 #! /usr/bin/python
+# -*- coding: utf-8 -*-
+#
+# This file is part of Ansible
+#
+# Ansible is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# Ansible is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with Ansible.  If not, see <http://www.gnu.org/licenses/>.
+
+ANSIBLE_METADATA = {
+    'metadata_version': '1.0',
+    'supported_by': 'community',
+    'status': 'preview'
+}
+
+DOCUMENTATION = '''
+module: pagerduty_contact_method
+short_description: Manage PagerDuty user contact methods
+description:
+    - This module will let you manage PagerDuty user contact methods. Available actions are creation, deletion, and updating.
+
+version_added: ""
+author:
+    - "Matty Jones" (@mattyjones)"
+requirements:
+    - PagerDuty API access
+options:
+    address:
+        description:
+            - The contact address
+        required: True
+        default:  null
+        choices:  []
+        aliases:  []
+        type:     string
+    email:
+        description:
+            - Email of user that needs to be updated.
+        required: True
+        default:  null
+        choices:  []
+        aliases:  []
+        type:     string
+    label:
+        description:
+            - A user defined label associated with the method.
+        required: True
+        default:  null
+        choices:  []
+        aliases:  []
+        type:     string
+    password:
+        description:
+            - PagerDuty user password.
+        required: True
+        default:  null
+        choices:  []
+        aliases:  []
+        type:     string
+    state:
+        description:
+            - Create or destroy a team.
+        required: True
+        default:  null
+        choices:  [ absent", "present" ]
+        aliases:  []
+        type: string
+    token:
+        description:
+            - A pagerduty token, generated on the pagerduty site. Should be used instead of
+              user/password combination.
+        required: True
+        default:  null
+        choices:  []
+        aliases:  []
+        type:     string
+    type:
+        description:
+            - The type on contact to create
+        required: True
+        default:  null
+        choices:  ['email_contact_method', 'phone_contact_method', 'push_notification_contact_method', 'sms_contact_method']
+        aliases:  []
+        type:     string
+    user_name:
+        description:
+            - PagerDuty user ID.
+        required: True
+        default:  null
+        choices:  []
+        aliases:  []
+        type:     string
+'''
+
+EXAMPLES = '''
+- name: Create a new contact method with a username and password
+  module: pagerduty_contact_method
+    state: present
+    email: bob@example.com
+    type: sms_contact_method
+    label: sms-01
+    address: 9785551212
+    user_name: bob
+    password: superSecretPassword
+
+- name: Delete a contact method with a token
+  module: pagerduty_contact_method
+    state: absent
+    email: bob@example.com
+    type: sms_contact_method
+    address: 9785551212
+    token: xxxxxxxxxx
+
+- name: Update a contact method with a username and password
+  module: pagerduty_contact_method
+    state: present
+    email: bob@example.com
+    type: sms_contact_method
+    label: sms-02
+    address: 9785551212
+    user_name: bob
+    password: superSecretPassword
+'''
+
+RETURN = '''
+name:
+    description: team name
+    returned: changed
+    type: string
+    sample: engineering
+id:
+    description: the Pagerduty id
+    returned: success
+    type: string
+    sample: PNQ57GY
+'''
 
 from ansible.module_utils.basic import AnsibleModule
 from ansible.module_utils.pagerduty_common import *
@@ -14,8 +158,6 @@ def main():
         argument_spec=dict(
             state=dict(required=True, type='str',
                        choices=['present', 'absent']),
-            summary=dict(default='Managed by Ansible',
-                         required=False, type='str'),
             token=dict(required=False, type='str'),
             user_name=dict(required=False, type='str'),
             password=dict(required=False, type='str'),
