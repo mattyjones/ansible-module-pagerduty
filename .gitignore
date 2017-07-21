@@ -3,5 +3,5 @@
 /sort_temp
 
 *.pyc
-
+.vscode
 test.json
